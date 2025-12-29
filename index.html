@@ -1,31 +1,190 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Asian Speedcubing Events</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2025 WCA Asia Tracker</title>
     <style>
-      body {
-        font-family: 'Inter', sans-serif;
-        background-color: #f8fafc;
-      }
+        :root {
+            --bg: #0d1117;
+            --card-bg: #161b22;
+            --accent: #58a6ff;
+            --text-main: #c9d1d9;
+            --text-muted: #8b949e;
+            --border: #30363d;
+            --finished-red: #f85149;
+        }
+
+        body {
+            font-family: -apple-system, system-ui, sans-serif;
+            background-color: var(--bg);
+            color: var(--text-main);
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container { max-width: 800px; margin: 0 auto; }
+
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        h1 { color: #fff; margin: 0; }
+
+        .comp-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 16px;
+            position: relative;
+        }
+
+        /* FINISHED STATE */
+        .comp-card.finished { border-color: var(--finished-red); }
+        .comp-card.finished .date-badge { color: var(--finished-red); }
+
+        .status-tag {
+            float: right;
+            color: var(--finished-red);
+            font-size: 0.7rem;
+            font-weight: bold;
+            border: 1px solid var(--finished-red);
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+
+        .date-badge {
+            font-size: 0.85rem;
+            font-weight: bold;
+            color: var(--accent);
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        .comp-name {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #fff;
+            text-decoration: none;
+            display: inline-block;
+            margin-bottom: 8px;
+        }
+
+        .comp-name:hover { text-decoration: underline; color: var(--accent); }
+
+        .loc-line {
+            font-size: 0.95rem;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .map-link {
+            color: #2ea043;
+            text-decoration: none;
+            font-weight: bold;
+            font-size: 0.8rem;
+            border: 1px solid #2ea043;
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+
+        .events-list {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            padding-top: 8px;
+            border-top: 1px solid var(--border);
+        }
+
+        #loader { text-align: center; padding: 50px; color: var(--accent); }
+        .hidden { display: none; }
     </style>
-  <script type="importmap">
-{
-  "imports": {
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
-    "react/": "https://aistudiocdn.com/react@^19.2.0/",
-    "react": "https://aistudiocdn.com/react@^19.2.0",
-    "react-markdown": "https://aistudiocdn.com/react-markdown@^10.1.0",
-    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0",
-    "recharts": "https://aistudiocdn.com/recharts@^3.5.0"
-  }
-}
-</script>
 </head>
-  <body>
-    <div id="root"></div>
-  </body>
+<body>
+
+<div class="container">
+    <header>
+        <h1>WCA Competitions (2025 Onwards)</h1>
+        <p style="color: var(--text-muted)">in HK, CN, TH, TW, KR, JP, SG, MY, MO, VN</p>
+    </header>
+
+    <div id="loader">Loading Data...</div>
+    <div id="list"></div>
+</div>
+
+<script>
+    const REGIONS = ['HK', 'CN', 'TH', 'TW', 'KR', 'JP', 'SG', 'MY', 'MO', 'VN'];
+    const API_URL = 'https://raw.githubusercontent.com/robiningelbrecht/wca-rest-api/master/api/competitions/';
+    
+    const EVENT_MAP = {
+        "333": "3x3", "222": "2x2", "444": "4x4", "555": "5x5", "666": "6x6", "777": "7x7",
+        "333bf": "3BLD", "333oh": "OH", "333fm": "FMC", "minx": "Mega", "pyram": "Pyra",
+        "skewb": "Skewb", "sq1": "Sq-1", "444bf": "4BLD", "555bf": "5BLD", "333mbf": "MBLD", "clock": "Clock"
+    };
+
+    async function init() {
+        try {
+            const responses = await Promise.all(REGIONS.map(r => fetch(`${API_URL}${r}.json`).then(res => res.json())));
+            let comps = responses.flatMap(r => r.items);
+
+            // Filter for 2025 onwards only
+            comps = comps.filter(c => new Date(c.date.from).getFullYear() >= 2025);
+            
+            // Sort Latest to Earliest
+            comps.sort((a, b) => new Date(b.date.from) - new Date(a.date.from));
+
+            const container = document.getElementById('list');
+            const now = new Date();
+            now.setHours(0,0,0,0);
+
+            comps.forEach(c => {
+                const isFinished = new Date(c.date.till) < now;
+                const events = c.events.map(e => EVENT_MAP[e] || e).join(', ');
+                
+                // Map Logic: Direct append of Lat,Lon to the proxy
+                const lat = c.venue.coordinates.latitude;
+                const lon = c.venue.coordinates.longitude;
+                const mapUrl = `https://www.google.com/maps/place/${lat},${lon}`;
+
+                const card = document.createElement('div');
+                card.className = `comp-card ${isFinished ? 'finished' : ''}`;
+                card.innerHTML = `
+                    ${isFinished ? '<span class="status-tag">FINISHED</span>' : ''}
+                    <span class="date-badge">${formatDate(c.date.from, c.date.till)}</span>
+                    <a href="https://www.worldcubeassociation.org/competitions/${c.id}" target="_blank" class="comp-name">${c.name}</a>
+                    
+                    <div class="loc-line">
+                        <span>📍 ${c.city}, ${c.country}</span>
+                        <a href="${mapUrl}" target="_blank" class="map-link">Google Maps</a>
+                    </div>
+
+                    <div class="events-list">
+                        <strong>Events:</strong> ${events}
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+
+            document.getElementById('loader').classList.add('hidden');
+        } catch (e) {
+            document.getElementById('loader').innerText = "Load failed.";
+        }
+    }
+
+    function formatDate(f, t) {
+        const d1 = new Date(f);
+        const d2 = new Date(t);
+        const opt = { day: '2-digit', month: 'short', year: 'numeric' };
+        if (f === t) return d1.toLocaleDateString('en-GB', opt);
+        return `${d1.toLocaleDateString('en-GB', {day:'2-digit', month:'short'})} - ${d2.toLocaleDateString('en-GB', opt)}`;
+    }
+
+    init();
+</script>
+</body>
 </html>
