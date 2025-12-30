@@ -10,22 +10,27 @@
             --finished: #f85149; --open: #f2cc60; --upcoming: #2ea043;
         }
         body { font-family: -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 20px; }
-        .controls { display: flex; gap: 10px; margin-bottom: 20px; }
-        select { background: #0d1117; color: white; border: 1px solid var(--border); padding: 10px; border-radius: 6px; flex: 1; }
+        .controls { display: flex; gap: 10px; margin-bottom: 20px; position: sticky; top: 0; background: var(--bg); padding: 10px 0; z-index: 100; }
+        select { background: #0d1117; color: white; border: 1px solid var(--border); padding: 10px; border-radius: 6px; flex: 1; cursor: pointer; }
         
+        .section-header { margin: 30px 0 15px; padding-bottom: 10px; border-bottom: 2px solid var(--border); color: var(--accent); font-weight: bold; text-transform: uppercase; letter-spacing: 1px; }
+        .separator { height: 2px; background: linear-gradient(90deg, transparent, var(--border), transparent); margin: 40px 0; }
+
         .comp-card { 
             background: var(--card); border-left: 6px solid #444; 
             padding: 15px; margin-bottom: 15px; border-radius: 0 8px 8px 0;
+            transition: transform 0.1s;
         }
-        .comp-card.finished { border-color: var(--finished); opacity: 0.8; }
+        .comp-card:hover { transform: translateX(4px); }
+        .comp-card.finished { border-color: var(--finished); opacity: 0.75; }
         .comp-card.open { border-color: var(--open); }
         .comp-card.upcoming { border-color: var(--upcoming); }
 
-        .comp-name { font-size: 1.25rem; font-weight: bold; color: white; text-decoration: none; }
-        .main-event { font-weight: bold; text-decoration: underline; color: #fff; border-bottom: 2px solid var(--accent); }
-        .reg-box { margin-top: 10px; font-size: 0.85rem; background: rgba(0,0,0,0.3); padding: 12px; border-radius: 4px; border: 1px solid var(--border); line-height: 1.6; }
-        .map-link { color: #2ea043; text-decoration: none; font-weight: bold; font-size: 0.8rem; border: 1px solid #2ea043; padding: 2px 6px; border-radius: 4px; margin-left: 10px; }
-        #loader { text-align: center; color: var(--accent); padding: 20px; font-weight: bold; }
+        .comp-name { font-size: 1.2rem; font-weight: bold; color: white; text-decoration: none; }
+        .main-event { font-weight: bold; text-decoration: underline; color: #fff; }
+        .reg-box { margin-top: 10px; font-size: 0.85rem; background: rgba(0,0,0,0.4); padding: 12px; border-radius: 4px; border: 1px solid var(--border); line-height: 1.5; }
+        .map-link { color: var(--upcoming); text-decoration: none; font-size: 0.8rem; border: 1px solid var(--upcoming); padding: 2px 6px; border-radius: 4px; }
+        #loader { text-align: center; color: var(--accent); padding: 20px; font-size: 1.1rem; }
     </style>
 </head>
 <body>
@@ -33,43 +38,34 @@
 <div class="controls">
     <select id="countrySelect" onchange="filterList()">
         <option value="ALL">All Regions (Asia)</option>
-        <option value="HK">Hong Kong</option>
-        <option value="CN">China</option>
-        <option value="TW">Taiwan</option>
-        <option value="MO">Macau</option>
-        <option value="JP">Japan</option>
-        <option value="KR">South Korea</option>
-        <option value="VN">Vietnam</option>
-        <option value="TH">Thailand</option>
-        <option value="SG">Singapore</option>
-        <option value="MY">Malaysia</option>
+        <option value="HK">Hong Kong</option><option value="CN">China</option>
+        <option value="TW">Taiwan</option><option value="MO">Macau</option>
+        <option value="JP">Japan</option><option value="KR">South Korea</option>
+        <option value="VN">Vietnam</option><option value="TH">Thailand</option>
+        <option value="SG">Singapore</option><option value="MY">Malaysia</option>
     </select>
     <select id="eventFilter" onchange="filterList()"><option value="ALL">All Events</option></select>
 </div>
 
-<div id="loader">Loading 2025 Competitions from all regions...</div>
+<div id="loader">Syncing 2025 WCA Competitions...</div>
 <div id="list"></div>
 
 <script>
 const REGIONS = ["HK", "CN", "MO", "TW", "JP", "KR", "VN", "TH", "SG", "MY"];
 const EVENT_NAMES = {
-    "333": "3x3x3 Cube", "222": "2x2x2 Cube", "444": "4x4x4 Cube", "555": "5x5x5 Cube","666": "6x6x6 Cube","777": "7x7x7 Cube",
-    "333oh": "3x3x3 One-Handed", "clock": "Clock", "minx": "Megaminx", "pyram": "Pyraminx",
-    "skewb": "Skewb", "sq1": "Square-1", "333bf": "3x3x3 Blindfolded", "333fm":"3x3x3 Fewest Moves","333mbf": "3x3x3 Multi-Blind", "444bf": "4x4x4 Blindfolded", "555bf": "5x5x5 Blindfolded"
+    "333": "3x3x3", "222": "2x2x2", "444": "4x4x4", "555": "5x5x5", "666": "6x6x6", "777": "7x7x7",
+    "333oh": "OH", "clock": "Clock", "minx": "Mega", "pyram": "Pyra", "skewb": "Skewb", "sq1": "Sq1",
+    "333bf": "3BLD", "333fm": "FMC", "333mbf": "MBLD", "444bf": "4BLD", "555bf": "5BLD"
 };
 
 let MASTER_DATA = [];
 
 async function init() {
-    const loader = document.getElementById('loader');
     try {
-        // Fetch all regions in parallel
         const promises = REGIONS.map(reg => 
             fetch(`https://raw.githubusercontent.com/robiningelbrecht/wca-rest-api/master/api/competitions/${reg}.json`)
-            .then(res => res.json())
-            .catch(() => ({items: []}))
+            .then(res => res.json()).catch(() => ({items: []}))
         );
-        
         const results = await Promise.all(promises);
         MASTER_DATA = results.flatMap(r => r.items)
             .filter(c => new Date(c.date.from).getFullYear() >= 2025)
@@ -77,8 +73,8 @@ async function init() {
 
         updateEventFilter();
         filterList();
-        loader.style.display = 'none';
-    } catch (e) { loader.innerText = "Error loading initial data."; }
+        document.getElementById('loader').style.display = 'none';
+    } catch (e) { document.getElementById('loader').innerText = "Network Error."; }
 }
 
 function updateEventFilter() {
@@ -94,12 +90,10 @@ function updateEventFilter() {
 function filterList() {
     const country = document.getElementById('countrySelect').value;
     const eventType = document.getElementById('eventFilter').value;
-    
-    const filtered = MASTER_DATA.filter(c => {
-        const matchCountry = (country === "ALL" || c.id.includes(country) || c.country === country);
-        const matchEvent = (eventType === "ALL" || c.events.includes(eventType));
-        return matchCountry && matchEvent;
-    });
+    const filtered = MASTER_DATA.filter(c => 
+        (country === "ALL" || c.id.includes(country) || c.country === country) &&
+        (eventType === "ALL" || c.events.includes(eventType))
+    );
     render(filtered);
 }
 
@@ -108,45 +102,49 @@ function render(comps) {
     container.innerHTML = '';
     const now = new Date();
 
-    comps.forEach(c => {
-        const start = new Date(c.date.from);
-        const end = new Date(c.date.till);
-        let status = (end < now) ? 'finished' : 'upcoming';
-        
-        const dateStr = (c.date.from === c.date.till) 
-            ? start.toLocaleDateString('en-GB', {day:'2-digit', month:'short', year:'numeric'})
-            : `${start.toLocaleDateString('en-GB', {day:'2-digit', month:'short'})} – ${end.toLocaleDateString('en-GB', {day:'2-digit', month:'short', year:'numeric'})}`;
+    const upcoming = comps.filter(c => new Date(c.date.till) >= now);
+    const finished = comps.filter(c => new Date(c.date.till) < now);
 
-        const lat = c.venue.coordinates.latitude;
-        const lon = c.venue.coordinates.longitude;
-        const mapUrl = `https://www.google.com/maps/place/${lat},${lon}`;
+    if (upcoming.length > 0) {
+        container.innerHTML += `<div class="section-header">Upcoming Competitions</div>`;
+        upcoming.forEach(c => container.appendChild(createCard(c, false)));
+    }
 
-        const card = document.createElement('div');
-        card.className = `comp-card ${status}`;
-        card.innerHTML = `
-            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                <a href="https://worldcubeassociation.org/competitions/${c.id}" target="_blank" class="comp-name">${c.name}</a>
-                <a href="${mapUrl}" target="_blank" class="map-link">📍 Map</a>
-            </div>
-            <div style="margin: 8px 0; font-size: 0.9rem;">📅 ${dateStr} | 📍 ${c.city}, ${c.country}</div>
-            <div id="details-${c.id}" style="font-size: 0.9rem; color: #8b949e;">Fetching v0 API data...</div>
-        `;
-        container.appendChild(card);
-        fetchV0(c.id, card);
-    });
+    if (finished.length > 0) {
+        container.innerHTML += `<div class="separator"></div><div class="section-header">Finished Competitions</div>`;
+        finished.forEach(c => container.appendChild(createCard(c, true)));
+    }
+}
+
+function createCard(c, isFinished) {
+    const start = new Date(c.date.from);
+    const end = new Date(c.date.till);
+    const dateStr = (c.date.from === c.date.till) 
+        ? start.toLocaleDateString('en-GB', {day:'2-digit', month:'short', year:'numeric'})
+        : `${start.toLocaleDateString('en-GB', {day:'2-digit', month:'short'})} – ${end.toLocaleDateString('en-GB', {day:'2-digit', month:'short', year:'numeric'})}`;
+
+    const card = document.createElement('div');
+    card.className = `comp-card ${isFinished ? 'finished' : 'upcoming'}`;
+    card.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <a href="https://worldcubeassociation.org/competitions/${c.id}" target="_blank" class="comp-name">${c.name}</a>
+            <a href="https://www.google.com/maps/search/?api=1&query=${c.venue.coordinates.latitude},${c.venue.coordinates.longitude}" target="_blank" class="map-link">📍 Map</a>
+        </div>
+        <div style="margin: 8px 0; font-size: 0.85rem;">📅 ${dateStr} | 📍 ${c.city}, ${c.country}</div>
+        <div id="details-${c.id}" style="font-size: 0.85rem; color: #8b949e;">
+            Events: ${c.events.map(e => EVENT_NAMES[e] || e).join(', ')}
+        </div>
+    `;
+    if (!isFinished) fetchV0(c.id, card);
+    return card;
 }
 
 async function fetchV0(compId, cardEl) {
     try {
-        const proxy = "https://api.allorigins.win/get?url=";
-        const v0Url = `https://www.worldcubeassociation.org/api/v0/competitions/${compId}`;
-        const res = await fetch(`${proxy}${encodeURIComponent(v0Url)}`);
+        const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent('https://www.worldcubeassociation.org/api/v0/competitions/'+compId)}`);
         const json = await res.json();
         const data = JSON.parse(json.contents);
-
-        const now = new Date();
-        const regOpen = new Date(data.registration_open);
-        const regClose = new Date(data.registration_close);
+        const now = new Date(), regOpen = new Date(data.registration_open), regClose = new Date(data.registration_close);
         
         if (now >= regOpen && now <= regClose) cardEl.classList.replace('upcoming', 'open');
 
@@ -155,24 +153,14 @@ async function fetchV0(compId, cardEl) {
             return (eid === data.main_event_id) ? `<span class="main-event">${name}</span>` : name;
         }).join(', ');
 
-        const timeFormat = { 
-            day: '2-digit', month: 'short', year: 'numeric',
-            hour: '2-digit', minute: '2-digit', second: '2-digit',
-            timeZoneName: 'short' 
-        };
-        
+        const tFmt = { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit', timeZoneName:'short' };
         document.getElementById(`details-${compId}`).innerHTML = `
             <strong>Events:</strong> ${eventsHtml}
             <div class="reg-box">
-                👥 <strong>Limit:</strong> ${data.competitor_limit || "N/A"} competitors<br>
-                📝 <strong>Registration Period:</strong><br>
-                🟢 Opens: ${regOpen.toLocaleString('en-GB', timeFormat)}<br>
-                🔴 Closes: ${regClose.toLocaleString('en-GB', timeFormat)}
-            </div>
-        `;
-    } catch (e) { 
-        document.getElementById(`details-${compId}`).innerText = "Details (Limit/Reg) could not be loaded."; 
-    }
+                👥 <strong>Limit:</strong> ${data.competitor_limit || "N/A"} | 
+                📝 <strong>Reg:</strong> ${regOpen.toLocaleString('en-GB', tFmt)} to ${regClose.toLocaleString('en-GB', tFmt)}
+            </div>`;
+    } catch (e) { document.getElementById(`details-${compId}`).innerHTML += " (Reg details failed to load)"; }
 }
 
 init();
