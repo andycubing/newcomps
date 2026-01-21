@@ -217,7 +217,16 @@
 
   // --- CONFIG ---
   // Using the environment's provided configuration
-  const firebaseConfig = JSON.parse(__firebase_config);
+  const firebaseConfig = {
+    apiKey: "AIzaSyAeQ_3kQMT05vyDJh_GzrYXkO230DAdmIA",
+    authDomain: "draft-comp.firebaseapp.com",
+    projectId: "draft-comp",
+    storageBucket: "draft-comp.firebasestorage.app",
+    messagingSenderId: "659823969862",
+    appId: "1:659823969862:web:cde4264c1c2930061dec47",
+    measurementId: "G-ZK96LVQ63R"
+  };
+
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
   const db = getFirestore(app);
@@ -315,19 +324,13 @@
   // Initialize Auth
   const initAuth = async () => {
     try {
-      // Use provided token if available, otherwise anonymous
-      if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-        await signInWithCustomToken(auth, __initial_auth_token);
-      } else {
-        await signInAnonymously(auth);
-      }
+      // We skip the __initial_auth_token check and go straight to anonymous
+      await signInAnonymously(auth);
+      console.log("Logged in anonymously");
     } catch (error) {
-      console.error("Auth Error:", error);
-      document.getElementById('connectionStatus').textContent = "Connection Failed";
-      document.getElementById('connectionStatus').style.color = "var(--danger)";
+      console.error("Auth failed:", error);
     }
   };
-  
   initAuth();
 
   onAuthStateChanged(auth, (user) => {
@@ -376,7 +379,7 @@
 
   // --- FIRESTORE DATA HANDLING ---
   
-  const getCollRef = (colName) => collection(db, 'artifacts', appId, 'public', 'data', colName);
+  const getCollRef = (colName) => collection(db, 'competitions');
 
   function initDataListeners() {
     // Listen to Competitions
